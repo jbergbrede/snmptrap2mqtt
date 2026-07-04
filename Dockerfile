@@ -12,11 +12,22 @@ RUN if [ -n "$MIB_URL" ]; then curl -fsSL -o "$(basename "$MIB_URL")" "$MIB_URL"
 
 FROM debian:bookworm-slim
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+ENV DEBIAN_FRONTEND=noninteractive
+
+# snmp-mibs-downloader lives in contrib (it fetches IETF/IANA-licensed MIB
+# text at build time) and provides the base MIBs (SNMPv2-SMI, SNMPv2-TC,
+# SNMP-FRAMEWORK-MIB, INET-ADDRESS-MIB, ...) that vendor MIBs like
+# TRUENAS-MIB import. Without it, `snmptrapd -m ALL` can't resolve those
+# imports and floods the log with "Cannot find module" / "Unlinked OID"
+# noise instead of actually resolving vendor OID names.
+RUN sed -i 's/^\(deb .*main\)$/\1 contrib/' /etc/apt/sources.list \
+    && apt-get update && apt-get install -y --no-install-recommends \
     snmp \
     snmptrapd \
+    snmp-mibs-downloader \
     mosquitto-clients \
     jq \
+    && download-mibs \
     && rm -rf /var/lib/apt/lists/*
 
 COPY mibs/ /usr/share/snmp/mibs/
