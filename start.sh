@@ -37,4 +37,12 @@ echo "[INFO] Starting snmptrapd on UDP 162 (topic: ${MQTT_TOPIC})..."
 # the latter can make snmptrapd open both an IPv4 and IPv6 socket. Traps
 # only ever arrive via loopback (see README), so this also avoids exposing
 # the unauthenticated listener on other interfaces.
-exec snmptrapd -f -Lo -m ALL -c /etc/snmp/snmptrapd.conf udp:127.0.0.1:162 > >(grep --line-buffered -v '^Cannot adopt OID')
+#
+# No `-c` flag: /etc/snmp/snmptrapd.conf (written above) is already
+# net-snmp's default config path, and `-c` *adds* to the default search
+# list rather than replacing it. Passing `-c /etc/snmp/snmptrapd.conf`
+# here made net-snmp load that same file twice, registering `traphandle
+# default` twice and running handle-trap.sh twice per trap (confirmed by
+# reproducing it locally: removing the redundant -c drops it back to one
+# invocation per trap).
+exec snmptrapd -f -Lo -m ALL udp:127.0.0.1:162 > >(grep --line-buffered -v '^Cannot adopt OID')
