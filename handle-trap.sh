@@ -44,7 +44,7 @@ PAYLOAD=$(jq -n \
     timestamp: $ts
   }')
 
-mqtt_args=(-h "$MQTT_HOST" -p "$MQTT_PORT" -r -t "$MQTT_TOPIC" -m "$PAYLOAD")
+mqtt_args=(-h "$MQTT_HOST" -p "$MQTT_PORT" -t "$MQTT_TOPIC" -m "$PAYLOAD")
 if [ -n "${MQTT_USER:-}" ]; then
     mqtt_args+=(-u "$MQTT_USER" -P "$MQTT_PASSWORD")
 fi
