@@ -92,6 +92,20 @@ local `mibs/` directory before building the image — they are copied into
 the container automatically. MIB files are gitignored by default since they
 may be vendor-specific; only commit ones you intend to ship with the image.
 
+A pre-built `truenas` variant (tags `latest-truenas`, `vX.Y.Z-truenas`) ships
+with the TrueNAS MIB baked in, downloaded at build time from
+`https://www.truenas.com/docs/files/truenas-mib-27.txt`:
+
+```bash
+docker run -d \
+  --name snmptrap2mqtt \
+  --network host \
+  --env-file .env \
+  ghcr.io/<owner>/<repo>:latest-truenas
+```
+
+To build it yourself: `docker build --build-arg MIB_URL=https://www.truenas.com/docs/files/truenas-mib-27.txt .`
+
 ## Testing
 
 Send a test trap from another machine:
