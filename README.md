@@ -116,6 +116,26 @@ it to `ghcr.io/<owner>/<repo>`. Pull requests only build (no push) to
 validate the Dockerfile. No secrets are required beyond the
 automatically-provided `GITHUB_TOKEN`.
 
+### Semantic versioning
+
+`.github/workflows/release.yml` runs [semantic-release](https://semantic-release.gitbook.io/)
+on every push to `main`. It inspects commit messages since the last release
+and, if any warrant a version bump, creates a `vX.Y.Z` git tag and GitHub
+release automatically — which in turn triggers `docker-publish.yml` to build
+and push that version's image tag to GHCR.
+
+Commit messages must follow [Conventional Commits](https://www.conventionalcommits.org/)
+for versioning to work:
+
+| Prefix | Bump |
+|---|---|
+| `fix:` | patch |
+| `feat:` | minor |
+| `feat!:` / `BREAKING CHANGE:` footer | major |
+| `chore:`, `docs:`, `refactor:`, etc. | none |
+
+Releases and their notes are visible under the repo's **Releases** page.
+
 ## Security notes
 
 - This repository contains no real hostnames, credentials, or topics —
