@@ -6,11 +6,17 @@ source /tmp/trap-env
 
 # snmptrapd passes trap data via stdin:
 # Line 1: sender hostname/ip
-# Line 2: trap OID
-# Remaining lines: variable bindings (OID = value)
+# Line 2: transport info (e.g. "UDP: [1.2.3.4]:47132->[5.6.7.8]:162"),
+#         NOT the trap OID despite what net-snmp's docs suggest
+# Remaining lines: variable bindings (OID = value), including the
+#         sysUpTime.0 and snmpTrapOID.0 bindings every trap carries
 read -r TRAP_HOST
-read -r TRAP_OID
+read -r TRAP_TRANSPORT
 TRAP_VARS=$(cat)
+
+# The actual trap type lives in the snmpTrapOID.0 varbind, not line 2.
+# Depending on which MIBs are loaded it may resolve as either name below.
+TRAP_OID=$(grep -oP '(SNMPv2-MIB::snmpTrapOID\.0|SNMPv2-SMI::snmpModules\.1\.1\.4\.1\.0) \K.*' <<<"$TRAP_VARS" || true)
 
 # Pull out the TrueNAS alert fields so subscribers can notify on just the
 # human-relevant bits instead of the full variable-binding dump.
@@ -21,6 +27,7 @@ ALERT_MESSAGE=$(grep -oP 'TRUENAS-MIB::alertMessage \K.*' <<<"$TRAP_VARS" || tru
 PAYLOAD=$(jq -n \
   --arg host "$TRAP_HOST" \
   --arg oid "$TRAP_OID" \
+  --arg transport "$TRAP_TRANSPORT" \
   --arg vars "$TRAP_VARS" \
   --arg alert_id "$ALERT_ID" \
   --arg alert_level "$ALERT_LEVEL" \
@@ -29,6 +36,7 @@ PAYLOAD=$(jq -n \
   '{
     source_host: $host,
     trap_oid: $oid,
+    trap_transport: $transport,
     variables: $vars,
     alert_id: $alert_id,
     alert_level: $alert_level,
