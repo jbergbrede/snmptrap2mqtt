@@ -110,11 +110,12 @@ docker exec <container> cat /tmp/last-trap.txt
 
 ## CI/CD
 
-`.github/workflows/docker-publish.yml` builds a multi-arch (amd64/arm64)
-image on every push to `main` and on version tags (`vX.Y.Z`), and publishes
-it to `ghcr.io/<owner>/<repo>`. Pull requests only build (no push) to
-validate the Dockerfile. No secrets are required beyond the
-automatically-provided `GITHUB_TOKEN`.
+`.github/workflows/docker-publish.yml` builds and publishes a multi-arch
+(amd64/arm64) image to `ghcr.io/<owner>/<repo>` **only when a `vX.Y.Z` tag is
+pushed** — i.e. only on release (see below), tagged both `vX.Y.Z` and
+`latest`. Pull requests only build (no push) to validate the Dockerfile; a
+plain push to `main` does not publish an image on its own. No secrets are
+required beyond the automatically-provided `GITHUB_TOKEN`.
 
 ### Semantic versioning
 
