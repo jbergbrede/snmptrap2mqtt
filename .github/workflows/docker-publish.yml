@@ -9,6 +9,7 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  TRUENAS_MIB_URL: https://www.truenas.com/docs/files/truenas-mib-27.txt
 
 jobs:
   build-and-push:
@@ -49,5 +50,30 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Extract metadata (truenas variant)
+        id: meta-truenas
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          flavor: |
+            suffix=-truenas,onlatest=true
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ github.event_name != 'pull_request' }}
+
+      - name: Build and push (truenas variant)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          build-args: |
+            MIB_URL=${{ env.TRUENAS_MIB_URL }}
+          tags: ${{ steps.meta-truenas.outputs.tags }}
+          labels: ${{ steps.meta-truenas.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
