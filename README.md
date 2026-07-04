@@ -114,6 +114,27 @@ Send a test trap from another machine:
 snmptrap -v2c -c public <truenas-ip> '' linkDown.0
 ```
 
+On success, `handle-trap.sh` logs a line to the container's stdout for every
+trap it forwards:
+
+```
+[INFO] Trap from 192.0.2.10 (linkDown) published to truenas/nas1/snmp_trap
+```
+
+Check for it with `docker logs <container>` (or `docker logs -f <container>`
+while sending the test trap). If you don't see it at all, the trap likely
+never reached `snmptrapd` — check that UDP/162 is reachable and that the
+sender's community string matches `SNMP_COMMUNITY`. To confirm the MQTT side
+independently, subscribe to the topic before sending the test trap:
+
+```bash
+mosquitto_sub -h <mqtt-host> -p <mqtt-port> -t '<mqtt-topic>' -v
+```
+
+Startup also logs a handful of `Cannot adopt OID` lines from `snmptrapd -m
+ALL`; these are harmless (duplicate registration of MIB modules it already
+loads by default) and are filtered out of the container's log output.
+
 To inspect the raw stdin format `snmptrapd` hands to the trap handler,
 temporarily replace the body of `handle-trap.sh` with `cat >> /tmp/last-trap.txt`,
 send a test trap, then:

@@ -30,3 +30,4 @@ if [ -n "${MQTT_USER:-}" ]; then
 fi
 
 mosquitto_pub "${mqtt_args[@]}"
+echo "[INFO] Trap from ${TRAP_HOST} (${TRAP_OID}) published to ${MQTT_TOPIC}"
