@@ -152,6 +152,18 @@ pushed** — i.e. only on release (see below), tagged both `vX.Y.Z` and
 plain push to `main` does not publish an image on its own. No secrets are
 required beyond the automatically-provided `GITHUB_TOKEN`.
 
+Pushes to any other branch also build and push, tagged `dev-<branch-name>`
+(and `dev-<branch-name>-truenas` for the TrueNAS variant), so you can pull
+and test a feature branch without building locally:
+
+```bash
+docker pull ghcr.io/<owner>/<repo>:dev-<branch-name>
+```
+
+These `dev-*` tags are never promoted to `latest` and aren't cleaned up
+automatically — prune stale ones from the package's GHCR page once a branch
+merges or is abandoned.
+
 ### Semantic versioning
 
 `.github/workflows/release.yml` runs [semantic-release](https://semantic-release.gitbook.io/)
