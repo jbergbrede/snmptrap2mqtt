@@ -68,7 +68,10 @@ Click **Send Test Alert** to verify the pipeline end to end.
 ## Home Assistant
 
 Use a topic wildcard so one automation handles every NAS instance;
-`trigger.topic` identifies which one fired.
+`trigger.topic` identifies which one fired. The payload includes parsed
+`alert_level` and `alert_message` fields (pulled from the TrueNAS MIB
+`alertLevel`/`alertMessage` bindings) alongside the raw `variables` dump, so
+notifications can show just the relevant text instead of the full trap:
 
 ```yaml
 automation:
@@ -76,12 +79,19 @@ automation:
     trigger:
       platform: mqtt
       topic: "truenas/+/snmp_trap"
+    condition:
+      # Only notify on warning/critical alerts; drop info-level noise.
+      - "{{ trigger.payload_json.alert_level in ['warning', 'critical'] }}"
     action:
       service: notify.mobile_app_your_phone
       data:
-        title: "NAS Alert: {{ trigger.topic.split('/')[1] }}"
-        message: "{{ trigger.payload_json.variables }}"
+        title: "NAS Alert: {{ trigger.topic.split('/')[1] }} ({{ trigger.payload_json.alert_level }})"
+        message: "{{ trigger.payload_json.alert_message }}"
 ```
+
+If a trap isn't a TrueNAS alert (e.g. `linkDown`), `alert_level` and
+`alert_message` will be empty strings — fall back to `variables` in that
+case, or add a second automation keyed on `trigger.payload_json.trap_oid`.
 
 ## MIB / human-readable OID names
 
