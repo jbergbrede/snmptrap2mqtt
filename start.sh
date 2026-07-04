@@ -34,8 +34,10 @@ echo "[INFO] Starting snmptrapd on UDP 162 (topic: ${MQTT_TOPIC})..."
 # default, which makes it log a harmless "Cannot adopt OID" warning per
 # object. Filter those out so real trap activity isn't buried in noise.
 #
-# Bind explicitly to IPv4 (udp:0.0.0.0:162) rather than the bare "udp:162"
-# form: the latter can make snmptrapd open both an IPv4 and IPv6 socket,
-# and on dual-stack hosts a single incoming packet can be delivered to
-# both, firing the trap handler twice per trap.
-exec snmptrapd -f -Lo -m ALL -c /etc/snmp/snmptrapd.conf udp:0.0.0.0:162 > >(grep --line-buffered -v '^Cannot adopt OID')
+# Bind explicitly to 127.0.0.1 rather than the bare "udp:162" form: the
+# latter can make snmptrapd open both an IPv4 and IPv6 socket, and on
+# dual-stack hosts a single incoming packet can be delivered to both,
+# firing the trap handler twice per trap. Traps only ever arrive via
+# loopback (see README), so binding to 127.0.0.1 instead of 0.0.0.0 also
+# avoids exposing the unauthenticated listener on other interfaces.
+exec snmptrapd -f -Lo -m ALL -c /etc/snmp/snmptrapd.conf udp:127.0.0.1:162 > >(grep --line-buffered -v '^Cannot adopt OID')
