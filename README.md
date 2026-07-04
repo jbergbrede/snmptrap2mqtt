@@ -152,12 +152,12 @@ pushed** — i.e. only on release (see below), tagged both `vX.Y.Z` and
 plain push to `main` does not publish an image on its own. No secrets are
 required beyond the automatically-provided `GITHUB_TOKEN`.
 
-Open pull requests also build and push, tagged `dev-pr-<number>` (and
-`dev-pr-<number>-truenas` for the TrueNAS variant), so you can pull and test
+Open pull requests also build and push, tagged `dev-<number>` (and
+`dev-<number>-truenas` for the TrueNAS variant), so you can pull and test
 a PR's changes without building locally:
 
 ```bash
-docker pull ghcr.io/<owner>/<repo>:dev-pr-<number>
+docker pull ghcr.io/<owner>/<repo>:dev-<number>
 ```
 
 These `dev-*` tags are never promoted to `latest` and aren't cleaned up
