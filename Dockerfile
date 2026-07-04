@@ -20,7 +20,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 # TRUENAS-MIB import. Without it, `snmptrapd -m ALL` can't resolve those
 # imports and floods the log with "Cannot find module" / "Unlinked OID"
 # noise instead of actually resolving vendor OID names.
-RUN sed -i 's/^\(deb .*main\)$/\1 contrib/' /etc/apt/sources.list \
+RUN sed -i 's/^Components: main$/Components: main contrib/' /etc/apt/sources.list.d/debian.sources \
     && apt-get update && apt-get install -y --no-install-recommends \
     snmp \
     snmptrapd \
