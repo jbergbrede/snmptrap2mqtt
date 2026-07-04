@@ -1,0 +1,2 @@
+Place additional MIB files here (e.g. FREENAS-MIB.txt) to get human-readable
+trap/OID names. Download the TrueNAS MIB from System -> SNMP in the TrueNAS UI.
