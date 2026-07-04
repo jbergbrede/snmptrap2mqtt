@@ -29,4 +29,8 @@ disableAuthorization yes
 EOF
 
 echo "[INFO] Starting snmptrapd on UDP 162 (topic: ${MQTT_TOPIC})..."
-exec snmptrapd -f -Lo -m ALL -c /etc/snmp/snmptrapd.conf udp:162
+# `-m ALL` directory-scans every MIB file, including ones (UCD-SNMP-MIB,
+# NET-SNMP-AGENT-MIB) that snmptrapd already registers internally by
+# default, which makes it log a harmless "Cannot adopt OID" warning per
+# object. Filter those out so real trap activity isn't buried in noise.
+exec snmptrapd -f -Lo -m ALL -c /etc/snmp/snmptrapd.conf udp:162 > >(grep --line-buffered -v '^Cannot adopt OID')
