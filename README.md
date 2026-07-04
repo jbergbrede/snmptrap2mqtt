@@ -87,6 +87,12 @@ automation:
       data:
         title: "NAS Alert: {{ trigger.topic.split('/')[1] }} ({{ trigger.payload_json.alert_level }})"
         message: "{{ trigger.payload_json.alert_message }}"
+        data:
+          push:
+            sound:
+              name: default
+              critical: "{{ 1 if trigger.payload_json.alert_level == 'critical' else 0 }}"
+              volume: 1
 ```
 
 If a trap isn't a TrueNAS alert (e.g. `linkDown`), `alert_level` and
