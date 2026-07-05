@@ -33,6 +33,7 @@ snmptrap2mqtt/
 | `MQTT_PASSWORD` | `your-password` | no | Mosquitto password |
 | `MQTT_TOPIC` | `truenas/nas1/snmp_trap` | yes | Use a different topic per NAS instance |
 | `SNMP_COMMUNITY` | `public` | no | SNMP community string (default: `public`) |
+| `MQTT_TIMEOUT` | `10` | no | Max seconds for a single publish attempt before failing (default: `10`) |
 
 Copy `.env.example` to `.env` and fill in your own values for local testing.
 **Never commit `.env`** — it's already in `.gitignore`.
@@ -140,7 +141,21 @@ trap it forwards:
 Check for it with `docker logs <container>` (or `docker logs -f <container>`
 while sending the test trap). If you don't see it at all, the trap likely
 never reached `snmptrapd` — check that UDP/162 is reachable and that the
-sender's community string matches `SNMP_COMMUNITY`. To confirm the MQTT side
+sender's community string matches `SNMP_COMMUNITY`.
+
+If the trap *did* arrive but the broker connection is broken (wrong
+`MQTT_HOST`/port, bad credentials, or a network/ACL issue blocking the
+route — e.g. Tailscale), `handle-trap.sh` logs an explicit line instead of
+failing silently:
+
+```
+[ERROR] Failed to publish trap from 192.0.2.10 (linkDown) to 100.x.x.x:1883/truenas/nas1/snmp_trap (mosquitto_pub exit 1): Error: Connection refused
+```
+
+`MQTT_TIMEOUT` (default 10s) bounds how long that connection attempt can
+hang before it's reported as a failure — useful when the network silently
+drops packets instead of refusing the connection, since a plain TCP
+timeout can otherwise take minutes. To confirm the MQTT side
 independently, subscribe to the topic before sending the test trap:
 
 ```bash
