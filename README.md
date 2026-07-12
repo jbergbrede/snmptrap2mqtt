@@ -34,6 +34,8 @@ snmptrap2mqtt/
 | `MQTT_TOPIC` | `truenas/nas1/snmp_trap` | yes | Use a different topic per NAS instance |
 | `SNMP_COMMUNITY` | `public` | no | SNMP community string (default: `public`) |
 | `MQTT_TIMEOUT` | `10` | no | Max seconds for a single publish attempt before failing (default: `10`) |
+| `ALERT_STATE_TOPIC_PREFIX` | `truenas/alerts` | no | Retained per-alert state topic prefix (default: `truenas/alerts`) |
+| `HA_DISCOVERY_PREFIX` | `homeassistant` | no | Home Assistant MQTT discovery prefix (default: `homeassistant`) |
 
 Copy `.env.example` to `.env` and fill in your own values for local testing.
 **Never commit `.env`** — it's already in `.gitignore`.
@@ -100,6 +102,46 @@ If a trap isn't a TrueNAS alert (e.g. `linkDown`), `alert_level` and
 `alert_message` will be empty strings — fall back to `variables` in that
 case, or add a second automation keyed on `trigger.payload_json.trap_oid`.
 
+### Per-alert entities (MQTT discovery)
+
+Alongside the flat `MQTT_TOPIC` feed above, `handle-trap.sh` also tracks
+each TrueNAS alert as its own disappearing HA entity, keyed by the alert's
+UUID (`alertId`), so active alerts can be aggregated by severity and drive
+`alert:`-based acknowledge/repeat notifications instead of one-shot
+messages. This only fires for TrueNAS's own `alert` / `alertCancellation`
+notifications (identified by `trap_oid`), not other trap types.
+
+On alert create, two retained messages are published:
+
+```
+truenas/alerts/{alertId}                          # ALERT_STATE_TOPIC_PREFIX
+{"state": "active", "severity": "CRIT", "message": "pool tank DEGRADED", "since": "2026-07-09T10:03:00Z"}
+
+homeassistant/binary_sensor/truenas_{alertId}/config   # HA_DISCOVERY_PREFIX
+{"unique_id": "truenas_{alertId}", "name": "TrueNAS Alert {alertId}", "state_topic": "truenas/alerts/{alertId}", ...}
+```
+
+On alert cancel, both topics are republished with an empty retained
+payload — this clears the state topic and, for the discovery topic,
+deletes the HA entity. Because both are retained broker-side operations,
+the delete lands whether or not HA is online at the moment the cancel
+trap arrives; HA picks it up on next connect.
+
+TrueNAS's `alertLevel` (7 levels: `info`, `notice`, `warning`, `error`,
+`critical`, `alert`, `emergency`) is collapsed to the three-way severity
+used for notification routing:
+
+| TrueNAS `alertLevel` | `severity` |
+|---|---|
+| `info`, `notice` | `INFO` |
+| `warning`, `error` | `WARN` |
+| `critical`, `alert`, `emergency` | `CRIT` |
+
+Configure HA-side template sensors, `alert:` entries, and a critical-only
+loud-notification automation on top of these entities/topics to get
+severity-proportional push notifications (loud/DND-bypass for `CRIT`,
+normal-priority otherwise).
+
 ## MIB / human-readable OID names
 
 `start.sh` runs `snmptrapd` with `-m ALL`, so any MIBs present under
@@ -160,6 +202,15 @@ independently, subscribe to the topic before sending the test trap:
 
 ```bash
 mosquitto_sub -h <mqtt-host> -p <mqtt-port> -t '<mqtt-topic>' -v
+```
+
+To verify the per-alert entity pipeline specifically, subscribe to both the
+state and discovery topics (retained, so you'll also see any alert already
+active) while triggering a real create/cancel from TrueNAS's alert service:
+
+```bash
+mosquitto_sub -h <mqtt-host> -p <mqtt-port> -v \
+  -t 'truenas/alerts/#' -t 'homeassistant/binary_sensor/truenas_+/config'
 ```
 
 Startup also logs a handful of `Cannot adopt OID` lines from `snmptrapd -m
