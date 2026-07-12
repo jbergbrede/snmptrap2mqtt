@@ -36,6 +36,7 @@ snmptrap2mqtt/
 | `MQTT_TIMEOUT` | `10` | no | Max seconds for a single publish attempt before failing (default: `10`) |
 | `ALERT_STATE_TOPIC_PREFIX` | `truenas/alerts` | no | Retained per-alert state topic prefix (default: `truenas/alerts`) |
 | `HA_DISCOVERY_PREFIX` | `homeassistant` | no | Home Assistant MQTT discovery prefix (default: `homeassistant`) |
+| `NAS_NAME` | `nas1` | no | Prefixed onto each alert's message, e.g. `"nas1: pool tank DEGRADED"` (default: `TrueNAS`) |
 
 Copy `.env.example` to `.env` and fill in your own values for local testing.
 **Never commit `.env`** — it's already in `.gitignore`.
@@ -111,11 +112,14 @@ UUID (`alertId`), so active alerts can be aggregated by severity and drive
 messages. This only fires for TrueNAS's own `alert` / `alertCancellation`
 notifications (identified by `trap_oid`), not other trap types.
 
-On alert create, two retained messages are published:
+On alert create, two retained messages are published. The state topic's
+`message` is prefixed with `NAS_NAME` (default `TrueNAS`) so notifications
+built on multiple instances' aggregated messages still identify which NAS
+fired:
 
 ```
 truenas/alerts/{alertId}                          # ALERT_STATE_TOPIC_PREFIX
-{"state": "active", "severity": "CRIT", "message": "pool tank DEGRADED", "since": "2026-07-09T10:03:00Z"}
+{"state": "active", "severity": "CRIT", "message": "TrueNAS: pool tank DEGRADED", "since": "2026-07-09T10:03:00Z"}
 
 homeassistant/binary_sensor/truenas_{alertId}/config   # HA_DISCOVERY_PREFIX
 {"unique_id": "truenas_{alertId}", "name": "TrueNAS Alert {alertId}", "state_topic": "truenas/alerts/{alertId}", ...}

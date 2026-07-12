@@ -146,7 +146,7 @@ if [ -n "$ALERT_ID" ]; then
         SEVERITY=$(severity_class "$ALERT_LEVEL")
         STATE_PAYLOAD=$(jq -n \
             --arg severity "$SEVERITY" \
-            --arg message "$ALERT_MESSAGE" \
+            --arg message "${NAS_NAME}: ${ALERT_MESSAGE}" \
             --arg since "$TIMESTAMP" \
             '{state: "active", severity: $severity, message: $message, since: $since}')
         DISCOVERY_PAYLOAD=$(jq -n \
