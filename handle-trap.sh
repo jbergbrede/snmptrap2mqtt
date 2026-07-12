@@ -14,15 +14,43 @@ read -r TRAP_HOST
 read -r TRAP_TRANSPORT
 TRAP_VARS=$(cat)
 
+# snmptrapd renders each varbind as `OID = TYPE: value` (e.g.
+# `TRUENAS-MIB::alertId = STRING: ce52df32-...`); grep -oP 'OID \K.*' below
+# only strips the OID name, leaving the `= TYPE: ` formatting stuck to the
+# front of every captured value. Strip that off (and any wrapping quotes
+# some DisplayStrings get rendered with) so downstream JSON fields, MQTT
+# topics, and HA entity IDs carry just the actual value.
+strip_varbind_type() {
+    sed -E -e 's/^= [A-Za-z][A-Za-z0-9_-]*: //' -e 's/^"//' -e 's/"$//' <<<"$1"
+}
+
 # The actual trap type lives in the snmpTrapOID.0 varbind, not line 2.
 # Depending on which MIBs are loaded it may resolve as either name below.
 TRAP_OID=$(grep -oP '(SNMPv2-MIB::snmpTrapOID\.0|SNMPv2-SMI::snmpModules\.1\.1\.4\.1\.0) \K.*' <<<"$TRAP_VARS" || true)
+TRAP_OID=$(strip_varbind_type "$TRAP_OID")
 
 # Pull out the TrueNAS alert fields so subscribers can notify on just the
 # human-relevant bits instead of the full variable-binding dump.
 ALERT_ID=$(grep -oP 'TRUENAS-MIB::alertId \K.*' <<<"$TRAP_VARS" || true)
 ALERT_LEVEL=$(grep -oP 'TRUENAS-MIB::alertLevel \K.*' <<<"$TRAP_VARS" || true)
 ALERT_MESSAGE=$(grep -oP 'TRUENAS-MIB::alertMessage \K.*' <<<"$TRAP_VARS" || true)
+ALERT_ID=$(strip_varbind_type "$ALERT_ID")
+ALERT_LEVEL=$(strip_varbind_type "$ALERT_LEVEL")
+ALERT_MESSAGE=$(strip_varbind_type "$ALERT_MESSAGE")
+# net-snmp renders enumerated INTEGERs with their numeric value alongside
+# the label (e.g. `critical(5)`); drop the "(5)" so alert_level is just
+# the plain word subscribers actually want to match against.
+ALERT_LEVEL=$(sed -E 's/\([0-9]+\)$//' <<<"$ALERT_LEVEL")
+
+# TrueNAS renders alertMessage as basic HTML for its own web UI (<br> line
+# breaks, &nbsp; indentation); flatten that to plain text so it reads as a
+# normal sentence in an MQTT payload or push notification instead of
+# showing raw markup.
+if [ -n "$ALERT_MESSAGE" ]; then
+    ALERT_MESSAGE=$(sed -E 's#<br[[:space:]]*/?>#  #g; s/&nbsp;/ /g' <<<"$ALERT_MESSAGE")
+    ALERT_MESSAGE=$(tr -s '[:space:]' ' ' <<<"$ALERT_MESSAGE")
+    ALERT_MESSAGE=$(sed -E 's/^ +//; s/ +$//' <<<"$ALERT_MESSAGE")
+fi
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 PAYLOAD=$(jq -n \
@@ -137,18 +165,13 @@ severity_class() {
 }
 
 if [ -n "$ALERT_ID" ]; then
-    # TrueNAS's alertId is a DisplayString varbind, which net-snmp may quote
-    # (`"a1b2c3d4-uuid"`); strip surrounding quotes/whitespace before using
-    # it in topic names and entity IDs, where a stray quote would corrupt
-    # both the MQTT topic and the discovery payload.
-    ALERT_ID_CLEAN=$(sed -e 's/^[[:space:]"]*//' -e 's/[[:space:]"]*$//' <<<"$ALERT_ID")
     # unique_id/topics keep the full UUID (needed for collision-safety and
     # for correlating an entity back to `midclt call alert.list`); the
     # display name only needs enough of it to tell entities apart at a
     # glance, so shorten it there.
-    ALERT_ID_SHORT="${ALERT_ID_CLEAN: -8}"
-    state_topic="${ALERT_STATE_TOPIC_PREFIX}/${ALERT_ID_CLEAN}"
-    discovery_topic="${HA_DISCOVERY_PREFIX}/binary_sensor/truenas_${ALERT_ID_CLEAN}/config"
+    ALERT_ID_SHORT="${ALERT_ID: -8}"
+    state_topic="${ALERT_STATE_TOPIC_PREFIX}/${ALERT_ID}"
+    discovery_topic="${HA_DISCOVERY_PREFIX}/binary_sensor/truenas_${ALERT_ID}/config"
 
     if [[ "$TRAP_OID" =~ (::alert$|\.50536\.2\.1\.1$) ]]; then
         SEVERITY=$(severity_class "$ALERT_LEVEL")
@@ -158,7 +181,7 @@ if [ -n "$ALERT_ID" ]; then
             --arg since "$TIMESTAMP" \
             '{state: "active", severity: $severity, message: $message, since: $since}')
         DISCOVERY_PAYLOAD=$(jq -n \
-            --arg uid "truenas_${ALERT_ID_CLEAN}" \
+            --arg uid "truenas_${ALERT_ID}" \
             --arg name "TrueNAS Alert ${ALERT_ID_SHORT}" \
             --arg state_topic "$state_topic" \
             '{
@@ -174,12 +197,12 @@ if [ -n "$ALERT_ID" ]; then
             }')
         publish_retained "$state_topic" "$STATE_PAYLOAD"
         publish_retained "$discovery_topic" "$DISCOVERY_PAYLOAD"
-        echo "[INFO] Alert ${ALERT_ID_CLEAN} (${SEVERITY}) created, entity published to ${discovery_topic}"
+        echo "[INFO] Alert ${ALERT_ID} (${SEVERITY}) created, entity published to ${discovery_topic}"
     elif [[ "$TRAP_OID" =~ (::alertCancellation$|\.50536\.2\.1\.2$) ]]; then
         # Delete the discovery entry first so HA drops the entity before its
         # backing state topic disappears, then clear the retained state.
         publish_retained "$discovery_topic" ""
         publish_retained "$state_topic" ""
-        echo "[INFO] Alert ${ALERT_ID_CLEAN} cancelled, entity ${discovery_topic} removed"
+        echo "[INFO] Alert ${ALERT_ID} cancelled, entity ${discovery_topic} removed"
     fi
 fi
