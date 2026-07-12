@@ -75,11 +75,7 @@ Use a topic wildcard so one automation handles every NAS instance;
 `trigger.topic` identifies which one fired. The payload includes parsed
 `alert_level` and `alert_message` fields (pulled from the TrueNAS MIB
 `alertLevel`/`alertMessage` bindings) alongside the raw `variables` dump, so
-notifications can show just the relevant text instead of the full trap.
-Both are cleaned up before publishing: `alert_level` is the plain word
-(`critical`, not net-snmp's `critical(5)` enum rendering), and
-`alert_message` has TrueNAS's `<br>`/`&nbsp;` HTML (meant for its own web
-UI) flattened to a plain sentence:
+notifications can show just the relevant text instead of the full trap:
 
 ```yaml
 automation:
