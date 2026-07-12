@@ -14,29 +14,15 @@ read -r TRAP_HOST
 read -r TRAP_TRANSPORT
 TRAP_VARS=$(cat)
 
-# snmptrapd renders each varbind as `OID = TYPE: value` (e.g.
-# `TRUENAS-MIB::alertId = STRING: ce52df32-...`); grep -oP 'OID \K.*' below
-# only strips the OID name, leaving the `= TYPE: ` formatting stuck to the
-# front of every captured value. Strip that off (and any wrapping quotes
-# some DisplayStrings get rendered with) so downstream JSON fields, MQTT
-# topics, and HA entity IDs carry just the actual value.
-strip_varbind_type() {
-    sed -E -e 's/^= [A-Za-z][A-Za-z0-9_-]*: //' -e 's/^"//' -e 's/"$//' <<<"$1"
-}
-
 # The actual trap type lives in the snmpTrapOID.0 varbind, not line 2.
 # Depending on which MIBs are loaded it may resolve as either name below.
 TRAP_OID=$(grep -oP '(SNMPv2-MIB::snmpTrapOID\.0|SNMPv2-SMI::snmpModules\.1\.1\.4\.1\.0) \K.*' <<<"$TRAP_VARS" || true)
-TRAP_OID=$(strip_varbind_type "$TRAP_OID")
 
 # Pull out the TrueNAS alert fields so subscribers can notify on just the
 # human-relevant bits instead of the full variable-binding dump.
 ALERT_ID=$(grep -oP 'TRUENAS-MIB::alertId \K.*' <<<"$TRAP_VARS" || true)
 ALERT_LEVEL=$(grep -oP 'TRUENAS-MIB::alertLevel \K.*' <<<"$TRAP_VARS" || true)
 ALERT_MESSAGE=$(grep -oP 'TRUENAS-MIB::alertMessage \K.*' <<<"$TRAP_VARS" || true)
-ALERT_ID=$(strip_varbind_type "$ALERT_ID")
-ALERT_LEVEL=$(strip_varbind_type "$ALERT_LEVEL")
-ALERT_MESSAGE=$(strip_varbind_type "$ALERT_MESSAGE")
 # net-snmp renders enumerated INTEGERs with their numeric value alongside
 # the label (e.g. `critical(5)`); drop the "(5)" so alert_level is just
 # the plain word subscribers actually want to match against.
