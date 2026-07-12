@@ -102,12 +102,15 @@ publish_retained() {
     fi
     # Same fail-fast-and-loudly treatment as the flat-topic publish above:
     # bounded by MQTT_TIMEOUT and logged explicitly on failure instead of
-    # silently tripping `set -e`.
+    # silently tripping `set -e`. Status must be captured inside the `else`
+    # branch itself — an `if` with no `else` exits 0 when its condition
+    # fails, so `$?` read after `fi` would always read back as success.
     local output status
     if output=$(timeout "${MQTT_TIMEOUT:-10}" mosquitto_pub "${args[@]}" 2>&1); then
         return 0
+    else
+        status=$?
     fi
-    status=$?
     if [ "$status" -eq 124 ]; then
         output="timed out after ${MQTT_TIMEOUT:-10}s connecting to broker"
     fi
