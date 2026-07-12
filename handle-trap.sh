@@ -49,5 +49,25 @@ if [ -n "${MQTT_USER:-}" ]; then
     mqtt_args+=(-u "$MQTT_USER" -P "$MQTT_PASSWORD")
 fi
 
-mosquitto_pub "${mqtt_args[@]}"
-echo "[INFO] Trap from ${TRAP_HOST} (${TRAP_OID}) published to ${MQTT_TOPIC}"
+# Capture output/exit code explicitly instead of letting a failed
+# mosquitto_pub trip `set -e` straight to exit: that would skip both the
+# success log below AND any indication of what went wrong, making a dead
+# broker (e.g. an ACL blocking the connection) indistinguishable from a
+# trap that never arrived at all.
+#
+# mosquitto_pub has no built-in connect timeout, so a blackholed
+# destination (e.g. a Tailscale ACL silently dropping packets, as opposed
+# to actively refusing the connection) hangs with zero output until the
+# OS-level TCP timeout kicks in, which can take minutes. Wrap it in
+# `timeout` so that failure mode surfaces as an [ERROR] line within
+# MQTT_TIMEOUT seconds instead.
+if MQTT_OUTPUT=$(timeout "${MQTT_TIMEOUT:-10}" mosquitto_pub "${mqtt_args[@]}" 2>&1); then
+    echo "[INFO] Trap from ${TRAP_HOST} (${TRAP_OID}) published to ${MQTT_TOPIC}"
+else
+    MQTT_STATUS=$?
+    if [ "$MQTT_STATUS" -eq 124 ]; then
+        MQTT_OUTPUT="timed out after ${MQTT_TIMEOUT:-10}s connecting to broker"
+    fi
+    echo "[ERROR] Failed to publish trap from ${TRAP_HOST} (${TRAP_OID}) to ${MQTT_HOST}:${MQTT_PORT}/${MQTT_TOPIC} (mosquitto_pub exit ${MQTT_STATUS}): ${MQTT_OUTPUT}" >&2
+    exit "$MQTT_STATUS"
+fi
