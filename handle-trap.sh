@@ -139,6 +139,11 @@ if [ -n "$ALERT_ID" ]; then
     # it in topic names and entity IDs, where a stray quote would corrupt
     # both the MQTT topic and the discovery payload.
     ALERT_ID_CLEAN=$(sed -e 's/^[[:space:]"]*//' -e 's/[[:space:]"]*$//' <<<"$ALERT_ID")
+    # unique_id/topics keep the full UUID (needed for collision-safety and
+    # for correlating an entity back to `midclt call alert.list`); the
+    # display name only needs enough of it to tell entities apart at a
+    # glance, so shorten it there.
+    ALERT_ID_SHORT="${ALERT_ID_CLEAN: -8}"
     state_topic="${ALERT_STATE_TOPIC_PREFIX}/${ALERT_ID_CLEAN}"
     discovery_topic="${HA_DISCOVERY_PREFIX}/binary_sensor/truenas_${ALERT_ID_CLEAN}/config"
 
@@ -151,7 +156,7 @@ if [ -n "$ALERT_ID" ]; then
             '{state: "active", severity: $severity, message: $message, since: $since}')
         DISCOVERY_PAYLOAD=$(jq -n \
             --arg uid "truenas_${ALERT_ID_CLEAN}" \
-            --arg name "TrueNAS Alert ${ALERT_ID_CLEAN}" \
+            --arg name "TrueNAS Alert ${ALERT_ID_SHORT}" \
             --arg state_topic "$state_topic" \
             '{
               unique_id: $uid,
